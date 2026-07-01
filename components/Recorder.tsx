@@ -22,9 +22,7 @@ export default function Recorder() {
     }
 
     return () => {
-      if (timerRef.current) {
-        clearInterval(timerRef.current);
-      }
+      if (timerRef.current) clearInterval(timerRef.current);
     };
   }, [recording, paused]);
 
@@ -45,44 +43,57 @@ export default function Recorder() {
       };
 
       recorder.onstop = async () => {
+        console.log("録音終了");
+
         try {
           const blob = new Blob(chunksRef.current, {
             type: "audio/webm",
           });
 
+          console.log(blob);
+
           const formData = new FormData();
           formData.append("audio", blob, "record.webm");
 
-          console.log("音声送信開始");
+          console.log("Groqへ送信");
 
           const res = await fetch("/api/transcribe", {
             method: "POST",
             body: formData,
           });
 
+          console.log("status:", res.status);
+
           const data = await res.json();
 
-          if (data.transcript) {
-            setTranscript(data.transcript);
+          console.log(data);
 
-            const aiRes = await fetch("/api/analyze", {
-              method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-              },
-              body: JSON.stringify({
-                transcript: data.transcript,
-              }),
-            });
-
-            const aiData = await aiRes.json();
-
-            setAnalysis(aiData.analysis);
-
-            alert("AI分析完了！");
-          } else {
-            alert("文字起こしに失敗しました");
+          if (!data.transcript) {
+            alert("文字起こし失敗");
+            return;
           }
+
+          setTranscript(data.transcript);
+
+          const aiRes = await fetch("/api/analyze", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              transcript: data.transcript,
+            }),
+          });
+
+          const aiData = await aiRes.json();
+
+          console.log(aiData);
+
+          if (aiData.analysis) {
+            setAnalysis(aiData.analysis);
+          }
+
+          alert("AI分析完了！");
         } catch (err) {
           console.error(err);
           alert("API通信エラー");
@@ -98,9 +109,10 @@ export default function Recorder() {
       setRecording(true);
       setPaused(false);
       setSeconds(0);
+
     } catch (error) {
       console.error(error);
-      alert("マイクが使用できません。");
+      alert("マイクが使用できません");
     }
   };
 
@@ -124,7 +136,7 @@ export default function Recorder() {
     setRecording(false);
     setPaused(false);
 
-    alert("録音を終了しました");
+    alert("録音終了");
   };
 
   const formatTime = () => {
@@ -134,8 +146,7 @@ export default function Recorder() {
 
     return `${h}:${m}:${s}`;
   };
-
-  return (
+    return (
     <div className="bg-white rounded-xl shadow-lg p-8">
 
       <div className="flex flex-wrap justify-center gap-4">
@@ -175,7 +186,6 @@ export default function Recorder() {
       </div>
 
       <div className="text-center mt-8">
-
         <h2 className="text-3xl font-bold">
           {paused
             ? "⏸ 一時停止中"
@@ -187,11 +197,9 @@ export default function Recorder() {
         <p className="text-5xl font-bold mt-4">
           {formatTime()}
         </p>
-
       </div>
 
       <div className="mt-8">
-
         <h3 className="text-xl font-bold mb-2">
           文字起こし結果
         </h3>
@@ -201,11 +209,9 @@ export default function Recorder() {
           value={transcript}
           readOnly
         />
-
       </div>
 
       <div className="mt-8">
-
         <h3 className="text-xl font-bold mb-2">
           AI商談分析
         </h3>
@@ -215,7 +221,6 @@ export default function Recorder() {
           value={analysis}
           readOnly
         />
-
       </div>
 
     </div>
