@@ -7,6 +7,9 @@ export default function Recorder() {
   const [paused, setPaused] = useState(false);
   const [seconds, setSeconds] = useState(0);
 
+  const [transcript, setTranscript] = useState("");
+  const [analysis, setAnalysis] = useState("");
+
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
@@ -19,7 +22,9 @@ export default function Recorder() {
     }
 
     return () => {
-      if (timerRef.current) clearInterval(timerRef.current);
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+      }
     };
   }, [recording, paused]);
 
@@ -39,26 +44,63 @@ export default function Recorder() {
         }
       };
 
-      recorder.onstop = () => {
-        const blob = new Blob(chunksRef.current, {
-          type: "audio/webm",
-        });
+      recorder.onstop = async () => {
+        try {
+          const blob = new Blob(chunksRef.current, {
+            type: "audio/webm",
+          });
 
-        console.log("録音完了", blob);
+          const formData = new FormData();
+          formData.append("audio", blob, "record.webm");
 
-        // 次回Whisperへ送信します
+          console.log("音声送信開始");
+
+          const res = await fetch("/api/transcribe", {
+            method: "POST",
+            body: formData,
+          });
+
+          const data = await res.json();
+
+          if (data.transcript) {
+            setTranscript(data.transcript);
+
+            const aiRes = await fetch("/api/analyze", {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({
+                transcript: data.transcript,
+              }),
+            });
+
+            const aiData = await aiRes.json();
+
+            setAnalysis(aiData.analysis);
+
+            alert("AI分析完了！");
+          } else {
+            alert("文字起こしに失敗しました");
+          }
+        } catch (err) {
+          console.error(err);
+          alert("API通信エラー");
+        }
       };
 
       recorder.start();
 
       mediaRecorderRef.current = recorder;
 
+      setTranscript("");
+      setAnalysis("");
       setRecording(true);
       setPaused(false);
       setSeconds(0);
     } catch (error) {
-      alert("マイクが使用できません。");
       console.error(error);
+      alert("マイクが使用できません。");
     }
   };
 
@@ -135,18 +177,44 @@ export default function Recorder() {
       <div className="text-center mt-8">
 
         <h2 className="text-3xl font-bold">
-
           {paused
             ? "⏸ 一時停止中"
             : recording
             ? "🔴 録音中"
             : "待機中"}
-
         </h2>
 
         <p className="text-5xl font-bold mt-4">
           {formatTime()}
         </p>
+
+      </div>
+
+      <div className="mt-8">
+
+        <h3 className="text-xl font-bold mb-2">
+          文字起こし結果
+        </h3>
+
+        <textarea
+          className="w-full h-60 border rounded-lg p-4"
+          value={transcript}
+          readOnly
+        />
+
+      </div>
+
+      <div className="mt-8">
+
+        <h3 className="text-xl font-bold mb-2">
+          AI商談分析
+        </h3>
+
+        <textarea
+          className="w-full h-80 border rounded-lg p-4"
+          value={analysis}
+          readOnly
+        />
 
       </div>
 
